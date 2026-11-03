@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Arcade\Server;
 
+use Arcade\Network\ClientAddress;
+use Arcade\Network\TrustedProxies;
 use Arcade\WebSocket\FrameCodec;
 use Arcade\WebSocket\Handshake;
 use Arcade\WebSocket\Opcode;
@@ -17,6 +19,7 @@ use RuntimeException;
 final class SocketServer
 {
     final public const int DEFAULT_MAX_CLIENTS = 300;
+    final public const int DEFAULT_MAX_PER_IP = 10;                // connexions simultanées par adresse IP réelle
     final public const int IDLE_TIMEOUT = 90;                  // s sans aucun message : déconnexion
     final public const int READ_SIZE = 8192;
     final public const int MAX_BUFFER = 20000;
@@ -36,6 +39,8 @@ final class SocketServer
         private readonly Handshake $handshake,
         private readonly float $interval,
         private readonly int $maxClients,
+        private readonly TrustedProxies $trusted,
+        private readonly int $maxPerIp,
         private readonly FrameCodec $codec = new FrameCodec(),
     ) {
     }
@@ -51,6 +56,8 @@ final class SocketServer
         Handshake $handshake,
         float $interval = self::DEFAULT_TICK,
         int $maxClients = self::DEFAULT_MAX_CLIENTS,
+        ?TrustedProxies $trusted = null,
+        int $maxPerIp = self::DEFAULT_MAX_PER_IP,
     ): self {
         $socket = @stream_socket_server("tcp://0.0.0.0:$port", $errno, $errstr);
         if ($socket === false) {
@@ -58,7 +65,7 @@ final class SocketServer
         }
         stream_set_blocking($socket, false);
 
-        return new self($socket, $hub, $handshake, $interval, $maxClients);
+        return new self($socket, $hub, $handshake, $interval, $maxClients, $trusted ?? TrustedProxies::fromString(''), $maxPerIp);
     }
 
     /** Boucle principale : ne rend jamais la main. */
@@ -110,6 +117,8 @@ final class SocketServer
         }
         stream_set_blocking($socket, false);
         $connection = new Connection($socket);
+        $connection->peer = ClientAddress::fromSocketName((string) @stream_socket_get_name($socket, true));
+        $connection->ip = $connection->peer;
         $connection->session = $this->hub->accept($connection);
         $this->connections[(int) $socket] = $connection;
     }
@@ -148,6 +157,14 @@ final class SocketServer
         }
         $head = substr($connection->inbound, 0, $end);
         $connection->inbound = (string) substr($connection->inbound, $end + 4);
+        $headers = Handshake::parseHeaders($head);
+        $connection->ip = ClientAddress::resolve($connection->peer, $headers['x-real-ip'] ?? $headers['x-forwarded-for'] ?? null, $this->trusted);
+        if ($this->maxPerIp > 0 && $this->connectionsFrom($connection) >= $this->maxPerIp) {
+            $connection->writeRaw(Handshake::tooMany());                      // trop de connexions depuis cette adresse
+            $this->drop($connection);
+
+            return false;
+        }
         $response = $this->handshake->respond($head);
         if ($response === null) {
             $connection->writeRaw(Handshake::rejection());
@@ -157,6 +174,9 @@ final class SocketServer
         }
         $connection->writeRaw($response);
         $connection->upgraded = true;
+        if ($connection->session instanceof IpAware) {
+            $connection->session->setAddress($connection->ip);
+        }
 
         return true;
     }
@@ -235,6 +255,20 @@ final class SocketServer
                 $this->drop($connection, sendClose: true);
             }
         }
+    }
+
+    /** Connexions déjà ouvertes (poignée de main faite) depuis la même adresse que celle-ci. */
+    private function connectionsFrom(Connection $connection): int
+    {
+        $key = ClientAddress::key($connection->ip);
+        $n = 0;
+        foreach ($this->connections as $other) {
+            if ($other !== $connection && $other->upgraded && ClientAddress::key($other->ip) === $key) {
+                $n++;
+            }
+        }
+
+        return $n;
     }
 
     private function drop(Connection $connection, bool $sendClose = false): void

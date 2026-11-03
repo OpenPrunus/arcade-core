@@ -35,13 +35,18 @@ final readonly class Handshake
             . 'Sec-WebSocket-Accept: ' . self::acceptKey($headers['sec-websocket-key']) . "\r\n\r\n";
     }
 
+    public static function tooMany(): string
+    {
+        return "HTTP/1.1 429 Too Many Requests\r\nConnection: close\r\nContent-Length: 0\r\n\r\n";
+    }
+
     public static function rejection(): string
     {
         return "HTTP/1.1 400 Bad Request\r\nConnection: close\r\nContent-Length: 0\r\n\r\n";
     }
 
     /** @return array<string, string> en-têtes en minuscules */
-    private static function parseHeaders(string $head): array
+    public static function parseHeaders(string $head): array
     {
         $headers = [];
         foreach (explode("\r\n", $head) as $line) {

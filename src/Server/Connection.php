@@ -15,6 +15,10 @@ final class Connection implements Transport
     public ?string $fragment = null;
     public bool $dead = false;
     public ?Session $session = null;
+    /** Adresse du pair TCP (le reverse proxy en production). */
+    public string $peer = '';
+    /** Adresse IP réelle du client, résolue à la poignée de main. */
+    public string $ip = '';
 
     public private(set) string $outbound = '';
 
