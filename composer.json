@@ -1,0 +1,28 @@
+{
+  "name": "openprunus/arcade-core",
+  "description": "Shared core for the OpenPrunus multiplayer games: WebSocket server (RFC 6455) in pure PHP, and small support classes",
+  "license": "MIT",
+  "type": "library",
+  "require": {
+    "php": ">=8.5",
+    "ext-json": "*",
+    "ext-mbstring": "*",
+    "psr/clock": "^1.0",
+    "psr/log": "^3.0"
+  },
+  "require-dev": {
+    "phpstan/phpstan": "^2.3",
+    "phpunit/phpunit": "^12.0",
+    "squizlabs/php_codesniffer": "^4.0"
+  },
+  "config": { "sort-packages": true },
+  "scripts": {
+    "test": "phpunit",
+    "cs": "phpcs",
+    "cs:fix": "phpcbf",
+    "stan": "phpstan analyse --no-progress --memory-limit=512M",
+    "check": ["@cs", "@stan", "@test"]
+  },
+  "autoload": { "psr-4": { "Arcade\\": "src/" } },
+  "autoload-dev": { "psr-4": { "Arcade\\Tests\\": "tests/" } }
+}

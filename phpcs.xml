@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<ruleset name="Arcade Core">
+  <description>PSR-12 pour tout le PHP du dépôt.</description>
+  <arg name="colors"/>
+  <arg value="sp"/>
+  <file>src</file>
+  <file>tests</file>
+  <rule ref="PSR12"/>
+  <!-- phpcs 4 ne comprend pas encore les property hooks de PHP 8.4+ : faux positifs, exclus fichier par fichier. -->
+  <rule ref="PSR2.Classes.PropertyDeclaration">
+    <exclude-pattern>src/Server/Connection.php</exclude-pattern>
+  </rule>
+  <rule ref="Generic.Files.LineLength">
+    <properties>
+      <property name="lineLimit" value="180"/>
+      <property name="absoluteLineLimit" value="0"/>
+    </properties>
+  </rule>
+</ruleset>
