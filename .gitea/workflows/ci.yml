@@ -18,7 +18,7 @@ concurrency:
 
 env:
   # Seuil minimal de couverture des lignes (%) : la CI échoue s'il baisse
-  COVERAGE_MIN: 0
+  COVERAGE_MIN: 47
 
 jobs:
   php:
@@ -36,10 +36,11 @@ jobs:
       - name: Coding standard (PSR-12) et analyse statique
         run: composer cs && composer stan
       - name: Tests et couverture
-        run: vendor/bin/phpunit --coverage-text --coverage-clover=clover.xml 2>&1 | tee coverage.txt
+        run: vendor/bin/phpunit --colors=never --coverage-text --coverage-clover=clover.xml 2>&1 | tee coverage.txt
       - name: Résumé et seuil de couverture
         run: |
           { echo '### Couverture du code'; echo '```'; grep -A6 'Code Coverage Report' coverage.txt; echo '```'; } >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
           pct=$(grep -E '^\s+Lines:' coverage.txt | head -1 | sed -E 's/.*Lines:\s+([0-9.]+)%.*/\1/')
+          test -n "$pct" || { echo 'taux de couverture introuvable'; exit 1; }
           echo "Couverture des lignes : ${pct} % (minimum ${COVERAGE_MIN} %)"
           awk -v p="$pct" -v m="$COVERAGE_MIN" 'BEGIN{exit !(p+0 >= m+0)}'
